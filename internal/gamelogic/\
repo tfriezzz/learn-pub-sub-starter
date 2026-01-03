@@ -36,32 +36,28 @@ func main() {
 
 	gamestate := gamelogic.NewGameState(userName)
 
+	input := gamelogic.GetInput()
 loop:
-	for {
-		input := gamelogic.GetInput()
-		switch input[0] {
-		case "spawn":
-			if err := gamestate.CommandSpawn(input); err != nil {
-				log.Printf("CommandSpawn returned err: %v", err)
-			}
-		case "move":
-			move, err := gamestate.CommandMove(input)
-			if err != nil {
-				log.Printf("CommandMove returned err: %v", err)
-			}
-			log.Printf("move: %v, executed succesfully", move)
-		case "status":
-			gamestate.CommandStatus()
-		case "help":
-			gamelogic.PrintClientHelp()
-		case "spam":
-			fmt.Println("Spamming not allowed yet!")
-		case "quit":
-			gamelogic.PrintQuit()
-			break loop
-		default:
-			fmt.Println("unknown command")
+	switch input[0] {
+	case "spawn":
+		if err := gamestate.CommandSpawn(input); err != nil {
+			log.Fatalf("CommandSpawn returned err: %v", err)
 		}
+	case "move":
+		move, err := gamestate.CommandMove(input)
+		if err != nil {
+			log.Fatalf("CommandMove returned err: %v", err)
+		}
+		log.Printf("move: %v, executed succesfully", move)
+	case "status":
+		gamestate.CommandStatus()
+	case "help":
+		gamelogic.PrintClientHelp()
+	case "spam":
+		fmt.Print("Spamming not allowed yet!")
+	case "quit":
+		gamelogic.PrintQuit()
+		break loop
 	}
 
 	// sigs := make(chan os.Signal, 1)
