@@ -26,6 +26,13 @@ func main() {
 		log.Printf("Channel returned err: %v", err)
 	}
 
+	queueName := "game_logs"
+	_, queue, err := pubsub.DeclareAndBind(connection, routing.ExchangePerilDirect, queueName, queueName+".*", pubsub.DurableQueue)
+	if err != nil {
+		log.Fatalf("could not subscribe to game_logs: %v", err)
+	}
+	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
+
 	gamelogic.PrintServerHelp()
 
 	// sigs := make(chan os.Signal, 1)
