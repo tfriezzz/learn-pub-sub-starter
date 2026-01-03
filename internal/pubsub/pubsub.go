@@ -3,8 +3,16 @@ package pusbsub
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+type SimpleQueueType int
+
+const (
+	DurableQueue SimpleQueueType = iota
+	TransientQueue
 )
 
 func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
@@ -17,4 +25,40 @@ func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	ch.PublishWithContext(context.Background(), exchange, key, false, false, msg)
 
 	return nil
+}
+
+func DeclareAndBind(
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+) (*amqp.Channel, amqp.Queue, error) {
+	channel, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("conn.Channel returned err: %v", err)
+		// TODO: return err
+	}
+
+	durable := false
+	autoDelete := false
+	exclusive := false
+
+	switch queueType {
+	case DurableQueue:
+		durable = true
+	case TransientQueue:
+		autoDelete = true
+		exclusive = true
+	}
+
+	queue, err := channel.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
+	if err != nil {
+		log.Fatalf("QueueDeclare returned err: %v", err)
+	}
+
+	if err := channel.QueueBind(queue.Name, key, exchange, false, nil); err != nil {
+		log.Fatalf("QueueBind returned err: %v", err)
+	}
+	return channel, queue, nil
 }

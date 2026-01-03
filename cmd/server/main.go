@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	pubsub "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -14,6 +12,7 @@ import (
 
 func main() {
 	fmt.Println("Starting Peril server...")
+
 	connectionString := "amqp://guest:guest@localhost:5672/"
 	connection, err := amqp.Dial(connectionString)
 	if err != nil {
@@ -27,24 +26,46 @@ func main() {
 		log.Printf("Channel returned err: %v", err)
 	}
 
-	if err := pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true}); err != nil {
-		log.Printf("PublishJSON returned err: %v", err)
+	gamelogic.PrintServerHelp()
+
+	// sigs := make(chan os.Signal, 1)
+	//
+	// signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	//
+	// done := make(chan bool, 1)
+	//
+	// go func() {
+	// 	sig := <-sigs
+	// 	fmt.Println()
+	// 	fmt.Println(sig)
+	// 	done <- true
+	// }()
+	//
+	// fmt.Println("awaiting signal")
+	// <-done
+	// fmt.Println("exiting")
+
+	for {
+		inputs := gamelogic.GetInput()
+	loop:
+		for _, input := range inputs {
+			switch input {
+			case "pause":
+				if err := pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true}); err != nil {
+					log.Printf("PublishJSON returned err: %v", err)
+				}
+				log.Println("sending PAUSE message")
+			case "resume":
+				if err := pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: false}); err != nil {
+					log.Printf("PublishJSON returned err : %v", err)
+				}
+				log.Println("sending RESUME message")
+			case "quit":
+				log.Println("exiting")
+				break loop
+			default:
+				log.Println("unknown command")
+			}
+		}
 	}
-
-	sigs := make(chan os.Signal, 1)
-
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	done := make(chan bool, 1)
-
-	go func() {
-		sig := <-sigs
-		fmt.Println()
-		fmt.Println(sig)
-		done <- true
-	}()
-
-	fmt.Println("awaiting signal")
-	<-done
-	fmt.Println("exiting")
 }
