@@ -35,6 +35,9 @@ func main() {
 	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
 
 	gamestate := gamelogic.NewGameState(userName)
+	if err := pubsub.SubscribeJSON(connection, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", userName), routing.PauseKey, pubsub.TransientQueue, handlerPause(gamestate)); err != nil {
+		log.Printf("pubsub.SubscribeJSON returned err: %v\n", err)
+	}
 
 loop:
 	for {
@@ -48,6 +51,7 @@ loop:
 			move, err := gamestate.CommandMove(input)
 			if err != nil {
 				log.Printf("CommandMove returned err: %v", err)
+				continue
 			}
 			log.Printf("move: %v, executed succesfully", move)
 		case "status":
@@ -63,21 +67,14 @@ loop:
 			fmt.Println("unknown command")
 		}
 	}
+}
 
-	// sigs := make(chan os.Signal, 1)
-	//
-	// signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	//
-	// done := make(chan bool, 1)
-	//
-	// go func() {
-	// 	sig := <-sigs
-	// 	fmt.Println()
-	// 	fmt.Println(sig)
-	// 	done <- true
-	// }()
-	//
-	// fmt.Println("awaiting signal")
-	// <-done
-	// fmt.Println("exiting")
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	handler := func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+		fmt.Printf("DEBUG: received PlayingState: %+v\n", ps)
+		gs.HandlePause(ps)
+	}
+
+	return handler
 }
