@@ -60,7 +60,8 @@ func DeclareAndBind(
 		exclusive = true
 	}
 
-	queue, err := channel.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
+	table := amqp.Table{"x-dead-letter-exchange": "peril_dlx"}
+	queue, err := channel.QueueDeclare(queueName, durable, autoDelete, exclusive, false, table)
 	if err != nil {
 		log.Fatalf("QueueDeclare returned err: %v", err)
 	}
