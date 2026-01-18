@@ -99,17 +99,20 @@ func SubscribeJSON[T any](
 			ackType := handler(target)
 			switch ackType {
 			case Ack:
-				d.Ack(false)
+				if err := d.Ack(false); err != nil {
+					log.Printf("Ack error: %v\n", err)
+				}
 				log.Println("Ack")
 			case NackRequeue:
-				d.Nack(false, true)
+				if err := d.Nack(false, true); err != nil {
+					log.Printf("NackRequeue error: %v\n", err)
+				}
 				log.Println("NackRequeue")
 			case NackDiscard:
-				d.Nack(false, false)
+				if err := d.Nack(false, false); err != nil {
+					log.Printf("NackDiscard error: %v\n", err)
+				}
 				log.Println("NackDiscard")
-			}
-			if err := d.Ack(false); err != nil {
-				log.Printf("d.Ack returned err: %v\n", err)
 			}
 		}
 	}()

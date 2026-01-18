@@ -50,9 +50,20 @@ func main() {
 		fmt.Sprintf("army_moves.%s", userName),
 		routing.ArmyMovesPrefix+".*",
 		pubsub.TransientQueue,
-		handlerMove(gamestate),
+		handlerMove(gamestate, ch),
 	); err != nil {
-		log.Printf("SubscribeJSON returned err: %v\n", err)
+		log.Fatalf("SubscribeJSON returned err: %v\n", err)
+	}
+
+	if err := pubsub.SubscribeJSON(
+		connection,
+		routing.ExchangePerilTopic,
+		"war",
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.DurableQueue,
+		handlerWar(gamestate),
+	); err != nil {
+		log.Fatalf("war-subscribe returned err %v\n", err)
 	}
 
 loop:
@@ -86,27 +97,6 @@ loop:
 			break loop
 		default:
 			fmt.Println("unknown command")
-		}
-	}
-}
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.AckType {
-	return func(ps routing.PlayingState) pubsub.AckType {
-		defer fmt.Print("> ")
-		fmt.Printf("DEBUG: received PlayingState: %+v\n", ps)
-		gs.HandlePause(ps)
-		return pubsub.Ack
-	}
-}
-
-func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) pubsub.AckType {
-	return func(move gamelogic.ArmyMove) pubsub.AckType {
-		defer fmt.Print("> ")
-		outcome := gs.HandleMove(move)
-		if outcome == gamelogic.MoveOutComeSafe || outcome == gamelogic.MoveOutcomeMakeWar {
-			return pubsub.Ack
-		} else {
-			return pubsub.NackDiscard
 		}
 	}
 }
