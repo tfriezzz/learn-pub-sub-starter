@@ -52,7 +52,7 @@ func main() {
 		pubsub.TransientQueue,
 		handlerMove(gamestate, ch),
 	); err != nil {
-		log.Fatalf("SubscribeJSON returned err: %v\n", err)
+		log.Printf("SubscribeJSON returned err: %v\n", err)
 	}
 
 	if err := pubsub.SubscribeJSON(
@@ -61,9 +61,9 @@ func main() {
 		"war",
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.DurableQueue,
-		handlerWar(gamestate),
+		handlerWar(gamestate, ch),
 	); err != nil {
-		log.Fatalf("war-subscribe returned err %v\n", err)
+		log.Printf("war-subscribe returned err %v\n", err)
 	}
 
 loop:

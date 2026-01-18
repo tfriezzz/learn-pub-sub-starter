@@ -1,8 +1,11 @@
 package pusbsub
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -30,7 +33,26 @@ func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	}
 
 	msg := amqp.Publishing{ContentType: "application/json", Body: body}
-	ch.PublishWithContext(context.Background(), exchange, key, false, false, msg)
+	if err := ch.PublishWithContext(context.Background(), exchange, key, false, false, msg); err != nil {
+		return fmt.Errorf("couldn't publish: %v", err)
+	}
+
+	return nil
+}
+
+func PublishGob[T any](ch *amqp.Channel, exchange, key string, val T) error {
+	var buffer bytes.Buffer
+	gobEncoder := gob.NewEncoder(&buffer)
+
+	err := gobEncoder.Encode(val)
+	if err != nil {
+		return fmt.Errorf("can't encode: %v", err)
+	}
+
+	msg := amqp.Publishing{ContentType: "application/gob", Body: buffer.Bytes()}
+	if err := ch.PublishWithContext(context.Background(), exchange, key, false, false, msg); err != nil {
+		return fmt.Errorf("couldn't publish gob: %v", err)
+	}
 
 	return nil
 }

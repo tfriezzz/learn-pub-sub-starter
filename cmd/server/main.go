@@ -27,7 +27,7 @@ func main() {
 	}
 
 	queueName := "game_logs"
-	_, queue, err := pubsub.DeclareAndBind(connection, routing.ExchangePerilDirect, queueName, queueName+".*", pubsub.DurableQueue)
+	_, queue, err := pubsub.DeclareAndBind(connection, routing.ExchangePerilTopic, queueName, queueName+".*", pubsub.DurableQueue)
 	if err != nil {
 		log.Fatalf("could not subscribe to game_logs: %v", err)
 	}
