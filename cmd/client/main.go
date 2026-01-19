@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 
@@ -66,17 +68,6 @@ func main() {
 		log.Printf("war-subscribe returned err %v\n", err)
 	}
 
-	if err := pubsub.SubscribeGob(
-		connection,
-		routing.ExchangePerilTopic,
-		routing.GameLogSlug,
-		routing.GameLogSlug+".*",
-		pubsub.DurableQueue,
-		handlerLogs(),
-	); err != nil {
-		log.Printf("SubscribeGob returned err: %v", err)
-	}
-
 loop:
 	for {
 		input := gamelogic.GetInput()
@@ -102,7 +93,24 @@ loop:
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "spam":
-			fmt.Println("Spamming not allowed yet!")
+			userName := gamestate.GetUsername()
+			if len(input) < 2 {
+				fmt.Println("spam needs a number")
+				continue
+			}
+			n, err := strconv.ParseInt(input[1], 10, 32)
+			if err != nil {
+				log.Fatalf("could not convert to int: %v", err)
+			}
+			for range n {
+
+				log := gamelogic.GetMaliciousLog()
+				malLog := routing.GameLog{CurrentTime: time.Now(), Message: log, Username: userName}
+
+				if err := pubsub.PublishGob(ch, routing.ExchangePerilTopic, routing.GameLogSlug+"."+userName, malLog); err != nil {
+					fmt.Printf("cannot publish: %v\n", err)
+				}
+			}
 		case "quit":
 			gamelogic.PrintQuit()
 			break loop
