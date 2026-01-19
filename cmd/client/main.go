@@ -66,6 +66,17 @@ func main() {
 		log.Printf("war-subscribe returned err %v\n", err)
 	}
 
+	if err := pubsub.SubscribeGob(
+		connection,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.DurableQueue,
+		handlerLogs(),
+	); err != nil {
+		log.Printf("SubscribeGob returned err: %v", err)
+	}
+
 loop:
 	for {
 		input := gamelogic.GetInput()

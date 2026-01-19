@@ -67,7 +67,6 @@ func DeclareAndBind(
 	channel, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("conn.Channel returned err: %v", err)
-		// TODO: return err
 	}
 
 	durable := false
@@ -102,39 +101,143 @@ func SubscribeJSON[T any](
 	queueType SimpleQueueType,
 	handler func(T) AckType,
 ) error {
-	channel, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
-	if err != nil {
-		log.Printf("DeclareAndBind returned err: %v", err)
+	JSONUnmarshaller := func(data []byte) (T, error) {
+		var t T
+		if err := json.Unmarshal(data, &t); err != nil {
+			return t, fmt.Errorf("cannot JSONUnmarshal: %v", err)
+		}
+
+		return t, nil
 	}
 
-	deliveries, err := channel.Consume(queue.Name, "", false, false, false, false, nil)
+	if err := helperSubscribe(conn, exchange, queueName, key, queueType, handler, JSONUnmarshaller); err != nil {
+		return fmt.Errorf("couldn't subscribe: %v", err)
+	}
+	// channel, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	// if err != nil {
+	// 	log.Printf("DeclareAndBind returned err: %v", err)
+	// }
+	//
+	// deliveries, err := channel.Consume(queue.Name, "", false, false, false, false, nil)
+	// if err != nil {
+	// 	log.Printf("channel.Consume returned err: %v", err)
+	// }
+	//
+	// go func() {
+	// 	var target T
+	// 	for d := range deliveries {
+	// 		if err := json.Unmarshal(d.Body, &target); err != nil {
+	// 			log.Printf("json.Unmarshal returned err: %v\n", err)
+	// 		}
+	// 		ackType := handler(target)
+	// 		switch ackType {
+	// 		case Ack:
+	// 			if err := d.Ack(false); err != nil {
+	// 				log.Printf("Ack error: %v\n", err)
+	// 			}
+	// 			log.Println("Ack")
+	// 		case NackRequeue:
+	// 			if err := d.Nack(false, true); err != nil {
+	// 				log.Printf("NackRequeue error: %v\n", err)
+	// 			}
+	// 			log.Println("NackRequeue")
+	// 		case NackDiscard:
+	// 			if err := d.Nack(false, false); err != nil {
+	// 				log.Printf("NackDiscard error: %v\n", err)
+	// 			}
+	// 			log.Println("NackDiscard")
+	// 		}
+	// 	}
+	// }()
+
+	return nil
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+	gobUnmarshaller := func(data []byte) (T, error) {
+		var t T
+		reader := bytes.NewReader(data)
+		decoder := gob.NewDecoder(reader)
+
+		err := decoder.Decode(&t)
+		if err != nil {
+			return t, fmt.Errorf("can not gobDecode: %v", err)
+		}
+		return t, nil
+	}
+
+	if err := helperSubscribe(conn, exchange, queueName, key, queueType, handler, gobUnmarshaller); err != nil {
+		return fmt.Errorf("couldn't subscribe: %v", err)
+	}
+
+	return nil
+}
+
+func helperSubscribe[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	simpleQueueType SimpleQueueType,
+	handler func(T) AckType,
+	unmarshaller func([]byte) (T, error),
+) error {
+	ch, queue, err := DeclareAndBind(
+		conn,
+		exchange,
+		queueName,
+		key,
+		simpleQueueType,
+	)
 	if err != nil {
-		log.Printf("channel.Consume returned err: %v", err)
+		return fmt.Errorf("couldn't declare/bind: %v", err)
+	}
+
+	msgs, err := ch.Consume(
+		queue.Name,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("could not consume messages: %v", err)
 	}
 
 	go func() {
-		var target T
-		for d := range deliveries {
-			if err := json.Unmarshal(d.Body, &target); err != nil {
-				log.Printf("json.Unmarshal returned err: %v\n", err)
-			}
-			ackType := handler(target)
-			switch ackType {
-			case Ack:
-				if err := d.Ack(false); err != nil {
-					log.Printf("Ack error: %v\n", err)
+		for msg := range msgs {
+			target, err := unmarshaller(msg.Body)
+			if err != nil {
+				log.Printf("could not unmarshal message: %v\n", err)
+				if err := msg.Nack(false, false); err != nil {
+					log.Printf("could not NackDiscard bad message: %v\n", err)
 				}
-				log.Println("Ack")
-			case NackRequeue:
-				if err := d.Nack(false, true); err != nil {
-					log.Printf("NackRequeue error: %v\n", err)
+			} else {
+				ackType := handler(target)
+
+				switch ackType {
+				case Ack:
+					if err := msg.Ack(false); err != nil {
+						log.Printf("could not Ack message: %v", err)
+					}
+				case NackRequeue:
+					if err := msg.Nack(false, true); err != nil {
+						log.Printf("could not NackRequeue message: %v\n", err)
+					}
+				case NackDiscard:
+					if err := msg.Nack(false, false); err != nil {
+						log.Printf("could not NackDiscard message: %v\n", err)
+					}
 				}
-				log.Println("NackRequeue")
-			case NackDiscard:
-				if err := d.Nack(false, false); err != nil {
-					log.Printf("NackDiscard error: %v\n", err)
-				}
-				log.Println("NackDiscard")
 			}
 		}
 	}()
